@@ -11,20 +11,16 @@ if (!SERPER_KEY) {
 /**
  * Busca vagas na API do Serper.dev (Google Jobs)
  * @param {Object} params
- * @param {string} params.q - termo de busca (obrigatório)
- * @param {string} [params.location] - local opcional (cidade, estado ou país)
+ * @param {string} params.q
+ * @param {string} [params.location]
  * @param {number} [params.page=1]
  * @param {number} [params.perPage=10]
  */
 async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
-  if (!q || !q.trim()) {
-    throw new Error("O parâmetro 'q' é obrigatório.");
-  }
-  if (!SERPER_KEY) {
-    throw new Error("Falta SERPER_API_KEY nas variáveis de ambiente.");
-  }
+  if (!q || !q.trim()) throw new Error("O parâmetro 'q' é obrigatório.");
+  if (!SERPER_KEY) throw new Error("Falta SERPER_API_KEY nas variáveis de ambiente.");
 
-  // A API do Serper espera o termo completo em 'q' (ex: "desenvolvedor Brazil")
+  // você pode usar location separado OU incluir no termo; vamos incluir no termo para maximizar match
   const query = location ? `${q} ${location}` : q;
 
   try {
@@ -32,8 +28,10 @@ async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
       SERPER_ENDPOINT,
       {
         q: query,
-        num: Number(perPage),
-        page: Number(page),
+        num: Number(perPage) || 10,
+        page: Number(page) || 1,
+        // Se quiser tentar o campo dedicado, descomente:
+        // location: location || undefined,
       },
       {
         headers: {
@@ -44,7 +42,6 @@ async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
       }
     );
 
-    // Normalização dos resultados
     const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
 
     return jobs.map((job, idx) => ({
@@ -59,14 +56,21 @@ async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
       source: "serper",
     }));
   } catch (err) {
-    // Mostra detalhes no log do Render (sem travar o servidor)
+    // Log completo no servidor
     console.error("❌ Erro na consulta ao Serper:", {
       status: err.response?.status,
       data: err.response?.data || err.message,
     });
 
-    // Retorna erro controlado
-    throw new Error("Erro interno ao consultar a API de vagas.");
+    // Repassa status e detalhes para a rota
+    const e = new Error(
+      err.response?.data?.message ||
+      err.message ||
+      "Falha ao consultar o provedor de vagas"
+    );
+    e.status = err.response?.status || 502;
+    e.details = err.response?.data;
+    throw e;
   }
 }
 
