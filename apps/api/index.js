@@ -1,7 +1,7 @@
 // apps/api/index.js
 const express = require("express");
 const cors = require("cors");
-const rateLimit = require("express-rate-limit"); // ✅ adicionado
+const rateLimit = require("express-rate-limit");
 const { searchJobsSerper } = require("./services/search");
 
 const app = express();
@@ -21,12 +21,22 @@ app.use(
 // ✅ rota de verificação de status
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-// Rota de teste
+// ✅ rota de debug opcional (para verificar env)
+app.get("/debug/env", (_req, res) => {
+  res.json({
+    serperKeyPresent: Boolean(process.env.SERPER_API_KEY),
+    serperKeyLength: process.env.SERPER_API_KEY
+      ? String(process.env.SERPER_API_KEY.length)
+      : "0",
+  });
+});
+
+// ✅ rota de teste raiz
 app.get("/", (req, res) => {
   res.json({ message: "API EmpregaIA está online 🚀" });
 });
 
-// Rota principal de busca
+// ✅ rota principal de busca
 app.get("/api/search", async (req, res) => {
   try {
     const { q, location, page, perPage } = req.query;
@@ -36,10 +46,16 @@ app.get("/api/search", async (req, res) => {
     }
 
     const result = await searchJobsSerper({ q, location, page, perPage });
-    res.json(result);
-  } catch (error) {
-    console.error("Erro na busca:", error.message);
-    res.status(500).json({ error: "Erro interno ao buscar vagas." });
+    return res.json(result);
+  } catch (err) {
+    console.error("Erro interno /api/search:", err.status || "", err.message);
+    return res.status(err.status || 500).json({
+      error: "Erro interno ao buscar vagas.",
+      hint: err.message, // 🔍 ajuda no diagnóstico
+      status: err.status || 500,
+      provider: "serper",
+      details: err.details || undefined,
+    });
   }
 });
 
