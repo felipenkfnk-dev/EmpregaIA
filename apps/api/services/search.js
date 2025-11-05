@@ -2,56 +2,72 @@
 const axios = require("axios");
 
 const SERPER_ENDPOINT = "https://google.serper.dev/jobs";
+const SERPER_KEY = process.env.SERPER_API_KEY;
+
+if (!SERPER_KEY) {
+  console.error("❌ SERPER_API_KEY não encontrada nas variáveis de ambiente.");
+}
 
 /**
- * Chama a Serper.dev (Google Jobs) e normaliza o retorno.
+ * Busca vagas na API do Serper.dev (Google Jobs)
  * @param {Object} params
  * @param {string} params.q - termo de busca (obrigatório)
- * @param {string} [params.location] - cidade/estado/país (opcional)
- * @param {number} [params.page=1] - página (1..n)
- * @param {number} [params.perPage=10] - itens por página (máx recomendado 20)
+ * @param {string} [params.location] - local opcional (cidade, estado ou país)
+ * @param {number} [params.page=1]
+ * @param {number} [params.perPage=10]
  */
 async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
-  if (!process.env.SERPER_API_KEY) {
+  if (!q || !q.trim()) {
+    throw new Error("O parâmetro 'q' é obrigatório.");
+  }
+  if (!SERPER_KEY) {
     throw new Error("Falta SERPER_API_KEY nas variáveis de ambiente.");
   }
 
-  const { data } = await axios.post(
-    SERPER_ENDPOINT,
-    { q, location },
-    {
-      headers: {
-        "X-API-KEY": process.env.SERPER_API_KEY,
-        "Content-Type": "application/json",
+  // A API do Serper espera o termo completo em 'q' (ex: "desenvolvedor Brazil")
+  const query = location ? `${q} ${location}` : q;
+
+  try {
+    const { data } = await axios.post(
+      SERPER_ENDPOINT,
+      {
+        q: query,
+        num: Number(perPage),
+        page: Number(page),
       },
-      timeout: 15000,
-    }
-  );
+      {
+        headers: {
+          "X-API-KEY": SERPER_KEY,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
 
-  const all = Array.isArray(data?.jobs) ? data.jobs : [];
+    // Normalização dos resultados
+    const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
 
-  const start = (Number(page) - 1) * Number(perPage);
-  const end = start + Number(perPage);
-  const pageItems = all.slice(start, end);
+    return jobs.map((job, idx) => ({
+      id: job.jobId || job.jobIdSnippet || `${job.title}-${idx}`,
+      title: job.title || "",
+      company: job.companyName || job.company || "",
+      location: job.location || "",
+      postedAt: job.date || job.timestamp || "",
+      snippet: job.description || job.snippet || "",
+      url: job.jobUrl || job.link || job.applyLink || "",
+      salary: job.salary || "",
+      source: "serper",
+    }));
+  } catch (err) {
+    // Mostra detalhes no log do Render (sem travar o servidor)
+    console.error("❌ Erro na consulta ao Serper:", {
+      status: err.response?.status,
+      data: err.response?.data || err.message,
+    });
 
-  const items = pageItems.map((j, idx) => ({
-    id: j.jobId || j.jobIdSnippet || `${j.title}-${start + idx}`,
-    title: j.title || "",
-    company: j.companyName || j.company || "",
-    location: j.location || "",
-    posted_at: j.date || j.timestamp || null,
-    snippet: j.description || j.snippet || "",
-    url: j.jobUrl || j.link || j.applyLink || "",
-    source: "serper",
-  }));
-
-  return {
-    query: q,
-    total: all.length,
-    page: Number(page),
-    perPage: Number(perPage),
-    items,
-  };
+    // Retorna erro controlado
+    throw new Error("Erro interno ao consultar a API de vagas.");
+  }
 }
 
 module.exports = { searchJobsSerper };
