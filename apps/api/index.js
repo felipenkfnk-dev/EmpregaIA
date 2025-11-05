@@ -1,13 +1,35 @@
+// apps/api/index.js
 const express = require("express");
 const cors = require("cors");
-const app = express();
+const { searchJobsSerper } = require("./services/search");
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/api/test", (req, res) => {
-  res.json({ message: "API EmpregaIA online!" });
+// Rota de teste
+app.get("/", (req, res) => {
+  res.json({ message: "API EmpregaIA está online 🚀" });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+// Rota principal de busca
+app.get("/api/search", async (req, res) => {
+  try {
+    const { q, location, page, perPage } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: "Parâmetro 'q' é obrigatório." });
+    }
+
+    const result = await searchJobsSerper({ q, location, page, perPage });
+    res.json(result);
+  } catch (error) {
+    console.error("Erro na busca:", error.message);
+    res.status(500).json({ error: "Erro interno ao buscar vagas." });
+  }
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
