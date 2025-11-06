@@ -47,8 +47,11 @@ export async function searchJobsSerpAPI({
   url.searchParams.set("engine", "google_jobs");
   url.searchParams.set("q", q);
   if (location) url.searchParams.set("location", location);
-  url.searchParams.set("hl", lang);
+  url.searchParams.set("hl", "pt-BR"); // idioma português
+  url.searchParams.set("gl", "br"); // país Brasil
+  url.searchParams.set("uule", "w+CAIQICIUQsO1byBBcgFvIEp1bmN0aW9u"); // São Paulo codificado
   url.searchParams.set("api_key", SERPAPI_KEY);
+
   if (pageToken) url.searchParams.set("next_page_token", pageToken); // ✅ novo
 
   const resp = await fetch(url.toString());
