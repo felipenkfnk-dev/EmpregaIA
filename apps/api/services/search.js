@@ -31,17 +31,25 @@ function normalizeJob(j, idx) {
   };
 }
 
-export async function searchJobsSerpAPI({ q, location = "Brazil", page = 0, perPage = 10, lang = "pt-BR" }) {
+/**
+ * Busca Google Jobs via SerpAPI.
+ * Paginação: use pageToken (next_page_token retornado na resposta anterior).
+ */
+export async function searchJobsSerpAPI({
+  q,
+  location = "Brazil",
+  lang = "pt-BR",
+  pageToken = null,
+}) {
   if (!SERPAPI_KEY) throw new Error("SERPAPI_KEY ausente nas variáveis de ambiente.");
 
-  const start = page * perPage;
   const url = new URL("https://serpapi.com/search.json");
   url.searchParams.set("engine", "google_jobs");
   url.searchParams.set("q", q);
   if (location) url.searchParams.set("location", location);
   url.searchParams.set("hl", lang);
-  url.searchParams.set("start", String(start));
   url.searchParams.set("api_key", SERPAPI_KEY);
+  if (pageToken) url.searchParams.set("next_page_token", pageToken); // ✅ novo
 
   const resp = await fetch(url.toString());
   if (!resp.ok) {
@@ -52,7 +60,7 @@ export async function searchJobsSerpAPI({ q, location = "Brazil", page = 0, perP
   const data = await resp.json();
   const raw = data.jobs_results || [];
   const items = raw.map(normalizeJob);
-  const nextPage = raw.length < perPage ? null : page + 1;
+  const nextPageToken = data.serpapi_pagination?.next_page_token || null;
 
-  return { items, nextPage };
+  return { items, nextPageToken };
 }
