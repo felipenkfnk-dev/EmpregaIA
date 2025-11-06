@@ -1,8 +1,8 @@
 // apps/api/index.js
-const express = require("express");
-const cors = require("cors");
-const rateLimit = require("express-rate-limit");
-const { searchJobsSerper } = require("./services/search");
+import express from "express";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { searchJobsSerpAPI } from "./services/search.js";
 
 const app = express();
 app.use(cors());
@@ -18,48 +18,62 @@ app.use(
   })
 );
 
-// ✅ rota de verificação de status
+// ✅ rota de verificação de status (para o Render)
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-// ✅ rota de debug opcional (para verificar env)
+// ✅ rota de debug (opcional)
 app.get("/debug/env", (_req, res) => {
   res.json({
-    serperKeyPresent: Boolean(process.env.SERPER_API_KEY),
-    serperKeyLength: process.env.SERPER_API_KEY
-      ? String(process.env.SERPER_API_KEY.length)
+    serpapiKeyPresent: Boolean(process.env.SERPAPI_KEY),
+    serpapiKeyLength: process.env.SERPAPI_KEY
+      ? String(process.env.SERPAPI_KEY.length)
       : "0",
   });
 });
 
-// ✅ rota de teste raiz
-app.get("/", (req, res) => {
+// ✅ rota principal de status
+app.get("/", (_req, res) => {
   res.json({ message: "API EmpregaIA está online 🚀" });
 });
 
-// ✅ rota principal de busca
+// ✅ rota principal de busca (Google Jobs via SerpAPI)
 app.get("/api/search", async (req, res) => {
   try {
-    const { q, location, page, perPage } = req.query;
+    const {
+      q,
+      location = "Brazil",
+      page = "0",
+      perPage = "10",
+      lang = "pt-BR",
+    } = req.query;
 
     if (!q) {
-      return res.status(400).json({ error: "Parâmetro 'q' é obrigatório." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Parâmetro 'q' é obrigatório." });
     }
 
-    const result = await searchJobsSerper({ q, location, page, perPage });
-    return res.json(result);
+    const { items, nextPage } = await searchJobsSerpAPI({
+      q,
+      location,
+      page: Number(page) || 0,
+      perPage: Number(perPage) || 10,
+      lang,
+    });
+
+    return res.json({ ok: true, items, nextPage });
   } catch (err) {
-    console.error("Erro interno /api/search:", err.status || "", err.message);
-    return res.status(err.status || 500).json({
+    console.error("❌ Erro interno /api/search:", err.message);
+    return res.status(500).json({
+      ok: false,
       error: "Erro interno ao buscar vagas.",
-      hint: err.message, // 🔍 ajuda no diagnóstico
-      status: err.status || 500,
-      provider: "serper",
-      details: err.details || undefined,
+      hint: err.message,
+      provider: "serpapi",
     });
   }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
+
+export default app;
