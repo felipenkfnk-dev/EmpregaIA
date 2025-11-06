@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "description": "API backend da plataforma EmpregaIA",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
+    "axios": "^1.7.7",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "axios": "^1.7.7",
-    "express-rate-limit": "^7.1.5"
+    "express-rate-limit": "^7.1.5",
+    "node-fetch": "^3.3.2"
   }
 }
