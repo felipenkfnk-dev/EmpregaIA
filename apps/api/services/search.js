@@ -1,77 +1,58 @@
 // apps/api/services/search.js
-const axios = require("axios");
+import fetch from "node-fetch";
 
-const SERPER_ENDPOINT = "https://google.serper.dev/jobs";
-const SERPER_KEY = process.env.SERPER_API_KEY;
+const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
-if (!SERPER_KEY) {
-  console.error("❌ SERPER_API_KEY não encontrada nas variáveis de ambiente.");
+function normalizeJob(j, idx) {
+  const id = j.job_id || `${j.job_title || j.title}-${j.company_name}-${idx}`;
+  return {
+    id,
+    title: j.job_title || j.title || "",
+    company: j.company_name || "",
+    location: j.location || "",
+    description_snippet: j.description || j.snippet || "",
+    posted_at: j.detected_extensions?.posted_at || null,
+    salary: j.detected_extensions?.salary || null,
+    remote: Boolean(
+      (j.detected_extensions?.work_from_home ?? null) ||
+      /remoto|remote/i.test(`${j.location} ${j.job_title} ${j.description}`)
+    ),
+    type: j.detected_extensions?.schedule_type || null,
+    via: j.via || "Google Jobs",
+    job_link: j.share_link || j.job_link,
+    apply_link: j.apply_options?.[0]?.link || j.job_apply_link || j.job_link || null,
+    apply_options: (j.apply_options || []).map((opt, k) => ({
+      id: `${id}-opt-${k}`,
+      label: opt.title || opt.name || "Aplicar",
+      link: opt.link
+    })),
+    logo: j.thumbnail || null,
+    source: "serpapi-google-jobs",
+  };
 }
 
-/**
- * Busca vagas na API do Serper.dev (Google Jobs)
- * @param {Object} params
- * @param {string} params.q
- * @param {string} [params.location]
- * @param {number} [params.page=1]
- * @param {number} [params.perPage=10]
- */
-async function searchJobsSerper({ q, location = "", page = 1, perPage = 10 }) {
-  if (!q || !q.trim()) throw new Error("O parâmetro 'q' é obrigatório.");
-  if (!SERPER_KEY) throw new Error("Falta SERPER_API_KEY nas variáveis de ambiente.");
+export async function searchJobsSerpAPI({ q, location = "Brazil", page = 0, perPage = 10, lang = "pt-BR" }) {
+  if (!SERPAPI_KEY) throw new Error("SERPAPI_KEY ausente nas variáveis de ambiente.");
 
-  // você pode usar location separado OU incluir no termo; vamos incluir no termo para maximizar match
-  const query = location ? `${q} ${location}` : q;
+  const start = page * perPage;
+  const url = new URL("https://serpapi.com/search.json");
+  url.searchParams.set("engine", "google_jobs");
+  url.searchParams.set("q", q);
+  if (location) url.searchParams.set("location", location);
+  url.searchParams.set("hl", lang);
+  url.searchParams.set("start", String(start));
+  url.searchParams.set("api_key", SERPAPI_KEY);
 
-  try {
-    const { data } = await axios.post(
-      SERPER_ENDPOINT,
-      {
-        q: query,
-        num: Number(perPage) || 10,
-        page: Number(page) || 1,
-        // Se quiser tentar o campo dedicado, descomente:
-        // location: location || undefined,
-      },
-      {
-        headers: {
-          "X-API-KEY": SERPER_KEY,
-          "Content-Type": "application/json",
-        },
-        timeout: 15000,
-      }
-    );
-
-    const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
-
-    return jobs.map((job, idx) => ({
-      id: job.jobId || job.jobIdSnippet || `${job.title}-${idx}`,
-      title: job.title || "",
-      company: job.companyName || job.company || "",
-      location: job.location || "",
-      postedAt: job.date || job.timestamp || "",
-      snippet: job.description || job.snippet || "",
-      url: job.jobUrl || job.link || job.applyLink || "",
-      salary: job.salary || "",
-      source: "serper",
-    }));
-  } catch (err) {
-    // Log completo no servidor
-    console.error("❌ Erro na consulta ao Serper:", {
-      status: err.response?.status,
-      data: err.response?.data || err.message,
-    });
-
-    // Repassa status e detalhes para a rota
-    const e = new Error(
-      err.response?.data?.message ||
-      err.message ||
-      "Falha ao consultar o provedor de vagas"
-    );
-    e.status = err.response?.status || 502;
-    e.details = err.response?.data;
-    throw e;
+  const resp = await fetch(url.toString());
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`SerpAPI ${resp.status}: ${text}`);
   }
-}
 
-module.exports = { searchJobsSerper };
+  const data = await resp.json();
+  const raw = data.jobs_results || [];
+  const items = raw.map(normalizeJob);
+  const nextPage = raw.length < perPage ? null : page + 1;
+
+  return { items, nextPage };
+}
