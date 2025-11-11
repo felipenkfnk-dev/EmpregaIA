@@ -1,3 +1,4 @@
+// apps/api/index.js
 const express = require("express");
 const cors = require("cors");
 const { searchJobsSerper } = require("./services/search");
@@ -25,8 +26,8 @@ app.get("/api/search", async (req, res) => {
 
     const result = await searchJobsSerper({
       q: String(q).trim(),
-      location: location ?? "Brazil", // default se vazio
-      type: type === "jobs" ? "jobs" : "jobs", // por enquanto só jobs
+      location: location ?? "Brazil",
+      type: type === "jobs" ? "jobs" : "jobs",
     });
 
     return res.json(result);
@@ -43,4 +44,8 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-module.exports = app;
+// ⭐️ INICIA O SERVIDOR (Render injeta PORT)
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`API EmpregaIA ouvindo em http://localhost:${PORT}`);
+});
