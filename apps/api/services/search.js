@@ -1,84 +1,105 @@
-// apps/api/services/search.js
-import fetch from "node-fetch";
-
+/* eslint-disable no-console */
+const API_BASE = "https://serpapi.com/search.json";
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
-function normalizeJob(j, idx) {
-  const id = j.job_id || `${j.job_title || j.title}-${j.company_name}-${idx}`;
-  return {
-    id,
-    title: j.job_title || j.title || "",
-    company: j.company_name || "",
-    location: j.location || "",
-    description_snippet: j.description || j.snippet || "",
-    posted_at: j.detected_extensions?.posted_at || null,
-    salary: j.detected_extensions?.salary || null,
-    remote: Boolean(
-      (j.detected_extensions?.work_from_home ?? null) ||
-      /remoto|remote/i.test(`${j.location} ${j.job_title} ${j.description}`)
-    ),
-    type: j.detected_extensions?.schedule_type || null,
-    via: j.via || "Google Jobs",
-    job_link: j.share_link || j.job_link || null,
-    apply_link:
-      j.apply_options?.[0]?.link || j.job_apply_link || j.job_link || null,
-    apply_options: (j.apply_options || []).map((opt, k) => ({
-      id: `${id}-opt-${k}`,
-      label: opt.title || opt.name || "Aplicar",
-      link: opt.link,
-    })),
-    logo: j.thumbnail || null,
-    source: "serpapi-google-jobs",
-  };
-}
+// 🧠 Normaliza localização para o padrão aceito pela SerpAPI (Google Jobs)
+function normalizeLocation(input) {
+  if (!input || String(input).trim() === "") return "Brazil";
 
-/**
- * Busca Google Jobs via SerpAPI (pt-BR + Brasil).
- * Paginação: use pageToken (next_page_token da resposta anterior).
- */
-export async function searchJobsSerpAPI({
-  q,
-  location = "Brazil",
-  lang = "pt-BR",
-  pageToken = null,
-}) {
-  if (!SERPAPI_KEY) throw new Error("SERPAPI_KEY ausente nas variáveis de ambiente.");
-  if (!q) throw new Error("Parâmetro 'q' é obrigatório.");
+  const raw = String(input).trim();
+  const lc = raw.toLowerCase();
 
-  // monta URL com idioma/país corretos
-  const buildUrl = (opts = {}) => {
-    const u = new URL("https://serpapi.com/search.json");
-    u.searchParams.set("engine", "google_jobs");
-    u.searchParams.set("q", q);
-    if (opts.location) u.searchParams.set("location", opts.location);
-    u.searchParams.set("hl", lang || "pt-BR"); // idioma
-    u.searchParams.set("gl", "br");            // país Brasil
-    if (opts.pageToken) u.searchParams.set("next_page_token", opts.pageToken);
-    u.searchParams.set("api_key", SERPAPI_KEY);
-    return u.toString();
+  const map = {
+    brasil: "Brazil",
+    "brasil, br": "Brazil",
+    br: "Brazil",
+    "br-": "Brazil",
+    brazil: "Brazil",
   };
 
-  // 1ª tentativa: com location informado
-  let resp = await fetch(buildUrl({ location, pageToken }));
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`SerpAPI ${resp.status}: ${text}`);
-  }
-  let data = await resp.json();
-  let items = (data.jobs_results || []).map(normalizeJob);
-  let nextPageToken = data.serpapi_pagination?.next_page_token || null;
+  if (map[lc]) return map[lc];
 
-  // Fallback: se não veio nada, tenta sem location mantendo gl=br (amplia o leque)
-  if (items.length === 0 && location) {
-    resp = await fetch(buildUrl({ pageToken })); // sem location
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`SerpAPI ${resp.status}: ${text}`);
-    }
-    data = await resp.json();
-    items = (data.jobs_results || []).map(normalizeJob);
-    nextPageToken = data.serpapi_pagination?.next_page_token || null;
-  }
+  // Ex.: “São Paulo, Brasil” → “São Paulo, Brazil”
+  if (lc.includes("brasil")) return raw.replace(/brasil/gi, "Brazil");
 
-  return { items, nextPageToken };
+  return raw; // mantém cidades/estados já em EN: "São Paulo, Brazil"
 }
+
+// 🔗 Monta URL da SerpAPI com hl/gl para resultados em PT-BR
+function buildUrl({ q, location, type = "jobs" }) {
+  const params = new URLSearchParams({
+    api_key: SERPAPI_KEY || "",
+    engine: type === "jobs" ? "google_jobs" : "google",
+    q: q || "",
+    location: normalizeLocation(location),
+    hl: "pt-BR", // idioma dos resultados
+    gl: "br",    // país BR
+  });
+  return `${API_BASE}?${params.toString()}`;
+}
+
+// 📦 Normaliza os resultados de vagas vindos da API
+function normalizeItems(json) {
+  const list = json?.jobs_results || json?.job_results || [];
+
+  return list.map((j) => {
+    const firstApply =
+      Array.isArray(j?.apply_options) && j.apply_options.length > 0
+        ? j.apply_options[0]?.link
+        : null;
+
+    const link = firstApply || j?.link || j?.google_links?.job_view_link || "";
+
+    return {
+      title: j?.title || "",
+      company: j?.company_name || j?.company || "",
+      location: j?.location || "",
+      link,
+      description: j?.description || j?.snippet || "",
+    };
+  });
+}
+
+// 🚀 Função principal: busca vagas no Google Jobs via SerpAPI
+async function searchJobsSerper({ q, location, type = "jobs" }) {
+  if (!SERPAPI_KEY) {
+    throw new Error("SERPAPI_KEY ausente no ambiente.");
+  }
+
+  const url = buildUrl({ q, location, type });
+  const started = Date.now();
+
+  const res = await fetch(url, { method: "GET" });
+  const text = await res.text();
+
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    // loga erros de parse para debug
+    console.error("[SerpAPI][ParseError]", { status: res.status, body: text });
+    throw new Error(`Resposta inválida da SerpAPI (status ${res.status}).`);
+  }
+
+  // trata erros vindos da SerpAPI
+  if (!res.ok || json?.error) {
+    console.error("[SerpAPI][Error]", {
+      status: res.status,
+      error: json?.error,
+      params: { q, location: normalizeLocation(location), type },
+    });
+    throw new Error(json?.error || `SerpAPI falhou (status ${res.status}).`);
+  }
+
+  const items = normalizeItems(json);
+
+  console.info("[SerpAPI][OK]", {
+    ms: Date.now() - started,
+    count: items.length,
+    params: { q, location: normalizeLocation(location), type },
+  });
+
+  return { ok: true, items };
+}
+
+module.exports = { searchJobsSerper };
