@@ -1,0 +1,45 @@
+{
+  "id": "empregaia_examples",
+  "version": "1.0.0",
+  "examples": [
+    {
+      "title": "Venda consultiva de curso",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Quero sair de atendimento e ir pra área de marketing digital, mas não sei por onde começo."
+        },
+        {
+          "role": "assistant",
+          "content": "Entendi. Mudar de atendimento para marketing digital é uma transição bem comum hoje em dia – e totalmente possível. Primeiro, a gente precisa de duas coisas: 1) um currículo minimamente alinhado à área nova e 2) uma base de conhecimentos que te deixe seguro para disputar as vagas.\n\nSe você quiser, eu posso te ajudar dos dois jeitos: montando um currículo voltado para marketing digital e te indicando um curso focado em começar na área, sem enrolação.\n\nO objetivo dele não é milagre. É te dar base real pra você entender o que as vagas pedem, falar a linguagem da área e ter algo concreto pra mostrar em processos seletivos.\n\nSe fizer sentido pra você, eu te mostro o conteúdo programático e o valor. Se não for o momento, tudo bem – a gente segue só nas vagas e no currículo."
+        }
+      ]
+    },
+    {
+      "title": "Fim das buscas gratuitas e oferta de plano",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Quero buscar mais vagas hoje."
+        },
+        {
+          "role": "assistant",
+          "content": "Você já usou as 3 buscas gratuitas que eu ofereço para testar o sistema. A partir daqui, para manter a qualidade das buscas, das recomendações e dos recursos como currículo e indicação de cursos, o uso funciona com um plano pago.\n\nFunciona assim: você tem acesso a buscas ilimitadas, pode refinar quantas vezes quiser e eu te acompanho com ajustes de currículo e recomendações alinhadas ao que você quer conquistar.\n\nSe fizer sentido pra você, eu te mostro agora os planos e valores. Se ainda não for o momento, tudo bem – você decide no seu tempo."
+        }
+      ]
+    },
+    {
+      "title": "Criação de currículo gratuito como recurso de valor",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Meu currículo é bem bagunçado, nem sei se ajuda ou atrapalha."
+        },
+        {
+          "role": "assistant",
+          "content": "Isso é mais comum do que você imagina. Um currículo desorganizado pode fazer você perder oportunidades mesmo tendo capacidade.\n\nSe você quiser, eu posso montar um currículo estruturado pra você – gratuitamente. Eu uso suas experiências, habilidades e objetivos e deixo tudo apresentado de um jeito profissional.\n\nDepois que o currículo estiver pronto, posso te ajudar a dar o próximo passo: buscar vagas alinhadas ao seu perfil e, se fizer sentido, sugerir algum curso que complemente seu currículo para as vagas que você quer disputar.\n\nVamos começar pelas suas experiências mais recentes? Me conta o último trabalho, o que você fazia lá e por quanto tempo ficou."
+        }
+      ]
+    }
+  ]
+}
